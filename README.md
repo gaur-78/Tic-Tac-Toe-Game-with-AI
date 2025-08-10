@@ -2,177 +2,219 @@
 #It is basically a game which is known as Tic Tac Toe and is played with  your device etc Laptop, Mobile.
 
 
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+import copy
 
+# ----- Game logic -----
 
-!pip3 install pygame numpy
-import sys
-import pygame
-import numpy as np
-pygame.init()
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-GRAY = (180, 180, 180) 
-WIDTH = 300
-HEIGHT = 300
-LINE_WIDTH = 5
-BOARD_ROWS = 3
-BOARD_COLS = 3
-SQUARE_SIZE = WIDTH // BOARD_COLS
-CIRCLE_RADIUS = SQUARE_SIZE // 3
-CIRCLE_WIDTH = 10
-CIRCLE_WIDTH = 15
-CROSS_WIDTH = 25
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption('Tic Tac Toe')
-screen.fill(BLACK)
-def draw_lines(color=WHITE):
-  for i in range(1, BOARD_COLS):
-    pygame.draw.line(screen, color, start_pos(i * SQUARE_SIZE, 0), end_pos(i * SQUARE_SIZE, HEIGHT), LINE_WIDTH)
-    pygame.draw.line(screen, color, start_pos(0, i * SQUARE_SIZE), end_pos(WIDTH, i * SQUARE_SIZE), LINE_WIDTH)
-def draw_figures(color=WHITE):
-  for row in range(BOARD_ROWS):
-    for col in range(BOARD_COLS):
-      if board[row][col] == 1:
-        pygame.draw.circle(screen, color, center(int(col * SQUARE_SIZE + SQUARE_SIZE // 2), int(row * SQUARE_SIZE + SQUARE_SIZE //2)), CIRCLE_RADIUS, CIRCLE_WIDTH)
-      elif board[row][col] == 2:
-        pygame.draw.line(screen, color, start_pos(col * SQUARE_SIZE + SQUARE_SIZE // 4, row * SQUARE_SIZE + SQUARE_SIZE // 4), end_pos(col * SQUARE_SIZE + 3 * SQUARE_SIZE //4, row * SQUARE_SIZE + 3 * SQUARE_SIZE //4), CROSS_WIDTH)
-        pygame.draw.line(screen, color, start_pos(col * SQUARE_SIZE + SQUARE_SIZE // 4, row * SQUARE_SIZE +  3 * SQUARE_SIZE // 4), end_pos(col * SQUARE_SIZE + 3 * SQUARE_SIZE //4, row * SQUARE_SIZE + SQUARE_SIZE //4), CROSS_WIDTH)
-def mark_square(row, col, player):
-  board[row][col] = player
+WIN_COMBINATIONS = [
+    (0,1,2), (3,4,5), (6,7,8),  # rows
+    (0,3,6), (1,4,7), (2,5,8),  # cols
+    (0,4,8), (2,4,6)            # diags
+]
 
-def available_square(row, col):
-  return board[row][col] == 0
+class TicTacToeGame:
+    def __init__(self, mode=1):
+        # board as list of 9 cells: 'X', 'O', or ''
+        self.board = [''] * 9
+        self.current = 'X'  # X always starts
+        self.mode = mode    # 1: HvH, 2: HvC
+        self.game_over = False
 
-def is_board_full(check_board=board):
-  for row in range(BOARD_ROWS):
-    for col in range(BOARD_COLS):
-      if check_board[row][col] == 0:
+    def reset(self):
+        self.board = [''] * 9
+        self.current = 'X'
+        self.game_over = False
+
+    def available_moves(self):
+        return [i for i, c in enumerate(self.board) if c == '']
+
+    def make_move(self, idx):
+        if self.board[idx] == '' and not self.game_over:
+            self.board[idx] = self.current
+            return True
         return False
-  return True
 
-def check_win(player, check_board=board):
-  for col in range(BOARD_COLS):
-    if check_board[0][col] == player and check_board[1][col] == player and check_board[2][col] == player:
-      return True
+    def switch_player(self):
+        self.current = 'O' if self.current == 'X' else 'X'
 
-  for row in range(BOARD_ROWS):
-    if check_board[row][0] == player and check_board[row][1] == player and check_board[row][2] == player:
-      return True
+    def winner(self):
+        for (a,b,c) in WIN_COMBINATIONS:
+            if self.board[a] != '' and self.board[a] == self.board[b] == self.board[c]:
+                return self.board[a], (a,b,c)
+        if all(cell != '' for cell in self.board):
+            return 'Draw', None
+        return None, None
 
-  if check_board[0][0] == player and check_board[1][1] == player and check_board[2][2] == player:
-    return True
+    # ----- Minimax for unbeatable AI (plays as 'O') -----
+    def minimax(self, board, player):
+        # player is 'O' or 'X' (the one to play)
+        winner, _ = self._check_winner_board(board)
+        if winner == 'O':
+            return 1
+        elif winner == 'X':
+            return -1
+        elif winner == 'Draw':
+            return 0
 
-  if check_board[0][2] == player and check_board[1][1] == player and check_board[2][0] == player:
-    return True
+        scores = []
+        for move in [i for i,c in enumerate(board) if c == '']:
+            board_copy = board[:]
+            board_copy[move] = player
+            score = self.minimax(board_copy, 'X' if player == 'O' else 'O')
+            scores.append(score)
 
-  return False
+        return max(scores) if player == 'O' else min(scores)
 
-def minimax(minimax_board, depth, is_maximizing):
-  if check_win(player2, minimax_board):
-    return float('inf')
-  elif check_win(player1, minimax_board):
-    return float('-inf')
-  elif is_board_full(minimax_board):
-    return 0
+    def best_move(self):
+        best_score = -999
+        best_move = None
+        for move in self.available_moves():
+            board_copy = self.board[:]
+            board_copy[move] = 'O'
+            score = self.minimax(board_copy, 'X')
+            # choose highest score for O
+            if score > best_score:
+                best_score = score
+                best_move = move
+        return best_move
 
-  if is_maximizing:
-    best_score = -1000
-    for row in range(BOARD_ROWS):
-      for col in range(BOARD_COLS):
-        if minimax_board[row][col] == 0:
-          minimax_board[row][col] = 2
-          score = minimax(board, depth + 1, False)
-          minimax_board[row][col] = 0
-          best_score = max(score, best_score)
-    return best_score
+    def _check_winner_board(self, board):
+        for (a,b,c) in WIN_COMBINATIONS:
+            if board[a] != '' and board[a] == board[b] == board[c]:
+                return board[a], (a,b,c)
+        if all(cell != '' for cell in board):
+            return 'Draw', None
+        return None, None
 
-  else:
-    best_score = 1000
-    for row in range(BOARD_ROWS):
-      for col in range(BOARD_COLS):
-        if minimax_board[row][col] == 0:
-          minimax_board[row][col] = 1
-          score = minimax(board, depth + 1, True)
-          minimax_board[row][col] = 0
-          best_score = min(score, best_score)
-    return best_score
+# ----- GUI -----
 
-def best_move():
-  best_score = -1000
-  best_move = (-1,-1)
-  for row in range(BOARD_ROWS):
-    for col in range(BOARD_COLS):
-      if board[row][col] == 0:
-        board[row][col] = 2
-        score = minimax(board, depth0, False)
-        board[row][col] = 0
-        if score > best_score:
-          best_score = score
-          move = (row, col)
-if move != (-1, -1):
-  mark_square(move[0], move[1], player2)
-  return True
-return False
+class TicTacToeUI(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title('Tic‑Tac‑Toe (3x3)')
+        self.resizable(False, False)
+        self.configure(padx=12, pady=12)
 
-def restart_game():
-   screen.fill(BLACK)
-   draw_lines()
-   for row in range(BOARD_ROWS):
-       for col in range(BOARD_COLS):
-           board[row][col] = 0
+        # Choose mode first
+        mode = self.ask_mode()
+        self.game = TicTacToeGame(mode=mode)
 
-draw_lines()
-player =1
-game_over = False
+        # Visual elements
+        self.status_var = tk.StringVar()
+        self.status_var.set("Turn: X")
 
+        self.header = tk.Label(self, text='Tic‑Tac‑Toe', font=('Segoe UI', 18, 'bold'))
+        self.header.grid(row=0, column=0, columnspan=3, pady=(0,8))
 
-while True:
-   for event in pygame.event.get():
-       if event.type == pygame.QUIT:
-          sys.exit()
+        self.status = tk.Label(self, textvariable=self.status_var, font=('Segoe UI', 12))
+        self.status.grid(row=1, column=0, columnspan=3)
 
-      if event.type == pygame.MOUSEBUTTONDOWN and not game_over:
-         mouseX = event.pos[0] // SQUARE_SIZE
-         mouseY = event.pos[1] // SQUARE_SIZE
+        # Board buttons
+        self.buttons = []
+        btn_font = ('Segoe UI', 36, 'bold')
+        for i in range(9):
+            r = 2 + i // 3
+            c = i % 3
+            b = tk.Button(self, text='', width=4, height=2, font=btn_font,
+                          command=lambda i=i: self.on_cell_click(i))
+            b.grid(row=r, column=c, padx=6, pady=6, ipadx=6, ipady=6)
+            self.buttons.append(b)
 
-         if available_square(mouseY, mouseX0:
-            mark_square(mouseY, mouseX, player)
-            if check_win(player):
-               game_over = True
-            player = player %2 +1
+        # Bottom controls
+        self.reset_btn = tk.Button(self, text='Reset', command=self.reset_game)
+        self.reset_btn.grid(row=5, column=0, pady=(10,0))
 
-            if not game_over:
-               if best_move():
-                  if check_win(2):
-                     game_over = True
-                  player = player % 2 + 1 
+        self.newgame_btn = tk.Button(self, text='New Game (choose mode)', command=self.new_game_dialog)
+        self.newgame_btn.grid(row=5, column=1, pady=(10,0))
 
-            if not game_over:
-               if is_board_full()
-                  game_over = True
+        self.quit_btn = tk.Button(self, text='Quit', command=self.quit)
+        self.quit_btn.grid(row=5, column=2, pady=(10,0))
 
+        # If computer starts (rare because X always starts), we could handle it — currently X starts.
+        self.update_ui()
 
-        if event.type == pygame.KEYDOWN:
-           if event.key == pygame.K_r:
-           restart_game()
-           game_over = False
-           player = 1
-if not game_over:
-  draw_figures()
-else:
-   if check_win(1)
-      draw_figures(GREEN)
-      draw_lines(GREEN)
+    def ask_mode(self):
+        # simple dialog to choose mode
+        answer = None
+        while answer not in ('1','2'):
+            answer = simpledialog.askstring('Choose mode', 'Choose mode:\n1) Human vs Human\n2) Human vs Computer (unbeatable)\n\nEnter 1 or 2:', parent=self)
+            if answer is None:
+                # user cancelled; default to HvC
+                return 2
+        return int(answer)
 
-elif check_win(2)
-     draw_figures(RED)
-     draw_lines(RED)
+    def on_cell_click(self, idx):
+        if self.game.game_over:
+            return
 
-else:
-     draw_figures(GRAY)
-     draw_lines(GRAY)
+        if not self.game.make_move(idx):
+            return  # invalid move
 
-pygame.display.update()
+        self.after(50, self.post_move_actions)  # slight delay for UI responsiveness
+
+    def post_move_actions(self):
+        winner, combo = self.game.winner()
+        if winner:
+            self.game.game_over = True
+            self.highlight_win(combo)
+            if winner == 'Draw':
+                self.status_var.set("It's a draw!")
+                messagebox.showinfo('Draw', "The game is a draw.")
+            else:
+                self.status_var.set(f"{winner} wins!")
+                messagebox.showinfo('Winner', f"{winner} wins!")
+            return
+
+        # swap player
+        self.game.switch_player()
+        self.update_ui()
+
+        # If mode is HvC and it's O's turn, let AI move
+        if self.game.mode == 2 and self.game.current == 'O' and not self.game.game_over:
+            self.after(250, self.computer_turn)
+
+    def computer_turn(self):
+        move = self.game.best_move()
+        if move is None:
+            # fallback random move
+            moves = self.game.available_moves()
+            if not moves:
+                return
+            import random
+            move = random.choice(moves)
+        self.game.make_move(move)
+        self.post_move_actions()
+
+    def update_ui(self):
+        # refresh button texts and status
+        for i, b in enumerate(self.buttons):
+            b['text'] = self.game.board[i]
+            b['state'] = tk.NORMAL if self.game.board[i] == '' and not self.game.game_over else tk.DISABLED
+            b['bg'] = 'SystemButtonFace'
+
+        if not self.game.game_over:
+            self.status_var.set(f"Turn: {self.game.current}")
+        else:
+            self.status_var.set('Game over')
+
+    def highlight_win(self, combo):
+        if combo is None:
+            return
+        for i in combo:
+            self.buttons[i]['bg'] = '#90ee90'  # light green highlight
+        self.update_ui()
+
+    def reset_game(self):
+        self.game.reset()
+        self.update_ui()
+
+    def new_game_dialog(self):
+        mode = self.ask_mode()
+        self.game = TicTacToeGame(mode=mode)
+        self.update_ui()
+
+if __name__ == '__main__':
+    app = TicTacToeUI()
+    app.mainloop()
